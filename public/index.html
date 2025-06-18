@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>PayPal Earnings System</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: Arial; padding: 20px; text-align: center; }
+    input, button { padding: 10px; margin: 10px; width: 90%; max-width: 400px; font-size: 16px; }
+    #log { white-space: pre-line; background: #f9f9f9; padding: 10px; border: 1px solid #ccc; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h1>💸 Earn PayPal Dollars</h1>
+
+  <div>
+    <p>Current Balance: <strong><span id="currentBalance">0.00</span> USD</strong></p>
+    <p>Next Payment In: <span id="paymentCountdown">00:00</span></p>
+    <p>Daily Limit Left: <span id="limitCountdown">00:00:00</span></p>
+    <button id="cashOutButton">💰 Cash Out</button>
+  </div>
+
+  <div>
+    <h3>Withdraw Funds</h3>
+    <input type="email" id="paypalEmailInput" placeholder="Enter your PayPal email" required />
+    <button id="withdrawFundsButton">🚀 Withdraw</button>
+  </div>
+
+  <div>
+    <h3>Referral System</h3>
+    <p>Referral Balance: $<span id="referralBalanceDisplay">0.00</span></p>
+    <button id="generateReferralButton">🔗 Generate Referral Link</button>
+    <p id="generatedReferralLink"></p>
+  </div>
+
+  <div>
+    <button id="multiplierButton">⚙️ Set Multiplier (2–100)</button>
+    <button id="divisorButton">⚙️ Set Divisor (0.01–0.90)</button>
+  </div>
+
+  <div>
+    <p id="lastPayment">Last Payment: $0.00</p>
+    <button id="checkPaymentStatusButton">🔍 Check Payment Status</button>
+  </div>
+
+  <div id="log"></div>
+
+  <script>
+    const API_URL = 'https://paypalbackend-1.onrender.com/paypal-withdraw';
+
+    const BALANCE_KEY = 'currentBalance';
+    const REFERRAL_KEY = 'referralBalance';
+    const START_TIME_KEY = 'startTime';
+    const LAST_EARNED_KEY = 'lastEarnedTime';
+
+    const MIN_CASH_OUT = 25.50;
+    const MULTIPLIER_RANGE = [2, 100];
+    const DIVISOR_RANGE = [0.01, 0.9];
+    const EARN_INTERVAL = 60 * 1000; // 1 min
+    const DAILY_LIMIT = 86400 * 1000; // 24 hrs
+    const EARN_AMOUNT = 3.5;
+
+    let currentBalance = parseFloat(localStorage.getItem(BALANCE_KEY)) || 0;
+    let referralBalance = parseFloat(localStorage.getItem(REFERRAL_KEY)) || 0;
+    let startTime = parseInt(localStorage.getItem(START_TIME_KEY)) || Date.now();
+    let lastEarnedTime = parseInt(localStorage.getItem(LAST_EARNED_KEY)) || Date.now();
+    let multiplier = MULTIPLIER_RANGE[0];
+    let divisor = DIVISOR_RANGE[0];
+
+    function formatTime(secs, short = false) {
+      const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60), s = Math.floor(secs % 60);
+      return short ? `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` :
+        `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    function log(msg) {
+      const entry = document.createElement('p');
+      entry.textContent = `✅ ${new Date().toLocaleTimeString()}: ${msg}`;
+      document.getElementById('log').appendChild(entry);
+    }
+
+    function updateUI() {
+      const now = Date.now();
+      const dailyLeft = Math.max(0, DAILY_LIMIT - (now - startTime));
+      const nextEarn = Math.max(0, EARN_INTERVAL - (now - lastEarnedTime));
+      document.getElementById('currentBalance').textContent = currentBalance.toFixed(2);
+      document.getElementById('referralBalanceDisplay').textContent = referralBalance.toFixed(2);
+      document.getElementById('limitCountdown').textContent = formatTime(dailyLeft / 1000);
+      document.getElementById('paymentCountdown').textContent = formatTime(nextEarn / 1000, true);
+    }
+
+    function startEarnings() {
+      setInterval(() => {
+        const now = Date.now();
+        if ((now - startTime) < DAILY_LIMIT && (now - lastEarnedTime) >= EARN_INTERVAL) {
+          currentBalance += (EARN_AMOUNT * multiplier) / divisor;
+          lastEarnedTime = now;
+          localStorage.setItem(BALANCE_KEY, currentBalance.toFixed(2));
+          localStorage.setItem(LAST_EARNED_KEY, lastEarnedTime);
+          log('Earning Added');
+        }
+        updateUI();
+      }, 1000);
+    }
+
+    document.getElementById('cashOutButton').onclick = () => {
+      if (currentBalance >= MIN_CASH_OUT) {
+        alert(`Cashing out $${currentBalance.toFixed(2)} to PayPal`);
+        log('Cash Out Initiated');
+        currentBalance = 0;
+        localStorage.setItem(BALANCE_KEY, currentBalance.toFixed(2));
+        updateUI();
+      } else {
+        alert(`You need at least $${MIN_CASH_OUT} to withdraw.`);
+      }
+    };
+
+    document.getElementById('multiplierButton').onclick = () => {
+      const val = parseFloat(prompt(`Enter multiplier (${MULTIPLIER_RANGE[0]}–${MULTIPLIER_RANGE[1]})`));
+      if (val >= MULTIPLIER_RANGE[0] && val <= MULTIPLIER_RANGE[1]) {
+        multiplier = val;
+        log(`Multiplier set to ${val}`);
+      }
+    };
+
+    document.getElementById('divisorButton').onclick = () => {
+      const val = parseFloat(prompt(`Enter divisor (${DIVISOR_RANGE[0]}–${DIVISOR_RANGE[1]})`));
+      if (val >= DIVISOR_RANGE[0] && val <= DIVISOR_RANGE[1]) {
+        divisor = val;
+        log(`Divisor set to ${val}`);
+      }
+    };
+
+    document.getElementById('generateReferralButton').onclick = () => {
+      const ref = btoa(Date.now().toString());
+      const link = `${location.origin}${location.pathname}?ref=${ref}`;
+      document.getElementById('generatedReferralLink').textContent = link;
+      log(`Referral link generated: ${link}`);
+    };
+
+    document.getElementById('withdrawFundsButton').onclick = async () => {
+      const email = document.getElementById('paypalEmailInput').value;
+      if (!email || !email.includes('@')) return alert('Enter a valid PayPal email');
+      if (currentBalance < MIN_CASH_OUT) return alert(`Need at least $${MIN_CASH_OUT} to withdraw`);
+
+      try {
+        const res = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, amount: currentBalance.toFixed(2) })
+        });
+        const data = await res.json();
+        if (data.success) {
+          log(`Withdrawal successful to ${email}`);
+          alert('Withdrawal sent!');
+          currentBalance = 0;
+          localStorage.setItem(BALANCE_KEY, '0');
+          updateUI();
+        } else {
+          throw new Error(data.message || 'Unknown error');
+        }
+      } catch (e) {
+        log(`Withdraw error: ${e.message}`);
+        alert('Withdrawal failed. Check logs.');
+      }
+    };
+
+    updateUI();
+    startEarnings();
+  </script>
+</body>
+</html>
